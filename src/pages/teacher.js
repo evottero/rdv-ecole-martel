@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/router'
 import { useAuth } from './_app'
 import { supabase } from '@/lib/supabase'
-import { formatDate, formatTime, toInputDate, generateTimeSlots, isTodayOrFuture } from '@/lib/utils'
+import { formatDate, formatTime, toInputDate } from '@/lib/utils'
 import Header from '@/components/Header'
 
 export default function TeacherPage() {
@@ -14,12 +14,14 @@ export default function TeacherPage() {
   const [showCreateSlot, setShowCreateSlot] = useState(false)
   const [showCreateMeeting, setShowCreateMeeting] = useState(false)
   const [loadingData, setLoadingData] = useState(true)
+  const [isCreating, setIsCreating] = useState(false)
 
-  // État création créneau
+  // État création créneau - création manuelle libre
   const [slotDate, setSlotDate] = useState('')
-  const [slotStartTime, setSlotStartTime] = useState('09:00')
-  const [slotEndTime, setSlotEndTime] = useState('12:00')
-  const [slotDuration, setSlotDuration] = useState(15)
+  const [slotStartHour, setSlotStartHour] = useState('08')
+  const [slotStartMin, setSlotStartMin] = useState('00')
+  const [slotEndHour, setSlotEndHour] = useState('08')
+  const [slotEndMin, setSlotEndMin] = useState('15')
 
   // État création réunion
   const [meetingTitle, setMeetingTitle] = useState('')
@@ -75,36 +77,55 @@ export default function TeacherPage() {
     if (data) setMeetings(data)
   }
 
-  const createSlots = async () => {
+  // Création d'un seul créneau manuellement
+  const createSingleSlot = async () => {
     if (!slotDate) {
       alert('Veuillez sélectionner une date')
       return
     }
 
-    const timeSlots = generateTimeSlots(
-      parseInt(slotStartTime.split(':')[0]),
-      parseInt(slotEndTime.split(':')[0]),
-      slotDuration
-    )
+    const startTime = `${slotStartHour}:${slotStartMin}`
+    const endTime = `${slotEndHour}:${slotEndMin}`
 
-    const slotsToInsert = timeSlots.map(slot => ({
+    // Vérifier que l'heure de fin est après l'heure de début
+    const startMinutes = parseInt(slotStartHour) * 60 + parseInt(slotStartMin)
+    const endMinutes = parseInt(slotEndHour) * 60 + parseInt(slotEndMin)
+
+    if (endMinutes <= startMinutes) {
+      alert('L\'heure de fin doit être après l\'heure de début')
+      return
+    }
+
+    setIsCreating(true)
+
+    const { error } = await supabase.from('appointments').insert({
       teacher_code_id: user.id,
       date: slotDate,
-      start_time: slot.start,
-      end_time: slot.end,
+      start_time: startTime,
+      end_time: endTime,
       status: 'available'
-    }))
-
-    const { error } = await supabase.from('appointments').insert(slotsToInsert)
+    })
 
     if (!error) {
-      alert(`${slotsToInsert.length} créneaux créés !`)
-      setShowCreateSlot(false)
-      setSlotDate('')
+      alert('Créneau créé !')
+      // Préparer le prochain créneau (enchaîner)
+      const newStartHour = slotEndHour
+      const newStartMin = slotEndMin
+      setSlotStartHour(newStartHour)
+      setSlotStartMin(newStartMin)
+      // Ajouter 15 min par défaut pour la fin
+      let newEndMinutes = parseInt(newStartHour) * 60 + parseInt(newStartMin) + 15
+      const newEndH = Math.floor(newEndMinutes / 60)
+      const newEndM = newEndMinutes % 60
+      setSlotEndHour(String(newEndH).padStart(2, '0'))
+      setSlotEndMin(String(newEndM).padStart(2, '0'))
+      
       loadAppointments()
     } else {
       alert('Erreur lors de la création')
     }
+
+    setIsCreating(false)
   }
 
   const deleteSlot = async (slotId) => {
@@ -205,6 +226,10 @@ export default function TeacherPage() {
     return acc
   }, {})
 
+  // Générer les options d'heures et minutes
+  const hours = Array.from({ length: 15 }, (_, i) => String(i + 7).padStart(2, '0')) // 07 à 21
+  const minutes = ['00', '05', '10', '15', '20', '25', '30', '35', '40', '45', '50', '55']
+
   if (loading || loadingData) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -249,7 +274,7 @@ export default function TeacherPage() {
               onClick={() => setShowCreateSlot(true)}
               className="btn-primary w-full mb-6"
             >
-              + Créer des créneaux
+              + Créer un créneau
             </button>
 
             {/* Liste des RDV */}
@@ -336,13 +361,14 @@ export default function TeacherPage() {
         )}
       </div>
 
-      {/* Modal création créneaux */}
+      {/* Modal création créneau - création manuelle libre */}
       {showCreateSlot && (
         <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50">
           <div className="bg-white w-full sm:max-w-md sm:rounded-xl rounded-t-xl p-6 animate-fade-in">
-            <h2 className="text-lg font-semibold mb-4">Créer des créneaux</h2>
+            <h2 className="text-lg font-semibold mb-4">Créer un créneau</h2>
             
             <div className="space-y-4">
+              {/* Date */}
               <div>
                 <label className="label">Date</label>
                 <input
@@ -354,56 +380,84 @@ export default function TeacherPage() {
                 />
               </div>
               
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="label">Début</label>
+              {/* Heure de début */}
+              <div>
+                <label className="label">Heure de début</label>
+                <div className="flex space-x-2">
                   <select
-                    value={slotStartTime}
-                    onChange={(e) => setSlotStartTime(e.target.value)}
-                    className="input"
+                    value={slotStartHour}
+                    onChange={(e) => setSlotStartHour(e.target.value)}
+                    className="input flex-1"
                   >
-                    {Array.from({ length: 12 }, (_, i) => i + 8).map(h => (
-                      <option key={h} value={`${h}:00`}>{h}:00</option>
+                    {hours.map(h => (
+                      <option key={h} value={h}>{h}h</option>
                     ))}
                   </select>
-                </div>
-                <div>
-                  <label className="label">Fin</label>
                   <select
-                    value={slotEndTime}
-                    onChange={(e) => setSlotEndTime(e.target.value)}
-                    className="input"
+                    value={slotStartMin}
+                    onChange={(e) => setSlotStartMin(e.target.value)}
+                    className="input flex-1"
                   >
-                    {Array.from({ length: 12 }, (_, i) => i + 9).map(h => (
-                      <option key={h} value={`${h}:00`}>{h}:00</option>
+                    {minutes.map(m => (
+                      <option key={m} value={m}>{m}</option>
                     ))}
                   </select>
                 </div>
               </div>
 
+              {/* Heure de fin */}
               <div>
-                <label className="label">Durée par créneau</label>
-                <select
-                  value={slotDuration}
-                  onChange={(e) => setSlotDuration(parseInt(e.target.value))}
-                  className="input"
-                >
-                  <option value={10}>10 minutes</option>
-                  <option value={15}>15 minutes</option>
-                  <option value={20}>20 minutes</option>
-                  <option value={30}>30 minutes</option>
-                </select>
+                <label className="label">Heure de fin</label>
+                <div className="flex space-x-2">
+                  <select
+                    value={slotEndHour}
+                    onChange={(e) => setSlotEndHour(e.target.value)}
+                    className="input flex-1"
+                  >
+                    {hours.map(h => (
+                      <option key={h} value={h}>{h}h</option>
+                    ))}
+                  </select>
+                  <select
+                    value={slotEndMin}
+                    onChange={(e) => setSlotEndMin(e.target.value)}
+                    className="input flex-1"
+                  >
+                    {minutes.map(m => (
+                      <option key={m} value={m}>{m}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Aperçu */}
+              <div className="bg-gray-50 rounded-lg p-3 text-center">
+                <p className="text-sm text-gray-600">Créneau :</p>
+                <p className="font-semibold text-primary-600">
+                  {slotStartHour}:{slotStartMin} → {slotEndHour}:{slotEndMin}
+                </p>
               </div>
             </div>
 
             <div className="flex space-x-3 mt-6">
-              <button onClick={() => setShowCreateSlot(false)} className="btn-secondary flex-1">
-                Annuler
+              <button 
+                onClick={() => setShowCreateSlot(false)} 
+                className="btn-secondary flex-1"
+              >
+                Fermer
               </button>
-              <button onClick={createSlots} className="btn-primary flex-1">
-                Créer
+              <button 
+                onClick={createSingleSlot} 
+                disabled={isCreating}
+                className="btn-primary flex-1"
+              >
+                {isCreating ? 'Création...' : 'Créer'}
               </button>
             </div>
+
+            <p className="text-xs text-gray-500 text-center mt-4">
+              💡 Après création, vous pouvez enchaîner avec un autre créneau
+            </p>
           </div>
         </div>
       )}
