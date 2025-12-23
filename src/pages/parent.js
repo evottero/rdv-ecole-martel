@@ -10,6 +10,7 @@ export default function ParentPage() {
   const { user, loading } = useAuth()
   const [teachers, setTeachers] = useState([])
   const [selectedTeacher, setSelectedTeacher] = useState(null)
+  const [selectedTeacherName, setSelectedTeacherName] = useState('')
   const [slots, setSlots] = useState([])
   const [myAppointments, setMyAppointments] = useState([])
   const [selectedSlot, setSelectedSlot] = useState(null)
@@ -67,8 +68,9 @@ export default function ParentPage() {
     }
   }
 
-  const loadSlots = async (teacherId) => {
+  const loadSlots = async (teacherId, teacherName) => {
     setSelectedTeacher(teacherId)
+    setSelectedTeacherName(teacherName)
     setSelectedSlot(null)
 
     const { data, error } = await supabase
@@ -101,14 +103,14 @@ export default function ParentPage() {
 
     if (error || !data?.length) {
       alert('Ce créneau n\'est plus disponible. Veuillez en choisir un autre.')
-      loadSlots(selectedTeacher)
+      loadSlots(selectedTeacher, selectedTeacherName)
     } else {
-      alert('Rendez-vous réservé avec succès !')
+      alert('✅ Rendez-vous réservé avec succès !')
       setSelectedSlot(null)
       setChildName('')
-      loadSlots(selectedTeacher)
+      loadSlots(selectedTeacher, selectedTeacherName)
       loadMyAppointments()
-      setActiveTab('my')
+      // On reste sur la page de réservation pour permettre d'autres réservations
     }
 
     setIsBooking(false)
@@ -129,7 +131,7 @@ export default function ParentPage() {
 
     if (!error) {
       loadMyAppointments()
-      if (selectedTeacher) loadSlots(selectedTeacher)
+      if (selectedTeacher) loadSlots(selectedTeacher, selectedTeacherName)
     }
   }
 
@@ -164,7 +166,7 @@ export default function ParentPage() {
                   : 'border-transparent text-gray-500'
               }`}
             >
-              Réserver
+              📅 Réserver
             </button>
             <button
               onClick={() => setActiveTab('my')}
@@ -174,7 +176,7 @@ export default function ParentPage() {
                   : 'border-transparent text-gray-500'
               }`}
             >
-              Mes RDV ({myAppointments.length})
+              📋 Mes RDV ({myAppointments.length})
             </button>
           </div>
         </div>
@@ -201,7 +203,7 @@ export default function ParentPage() {
                     {teachers.map(teacher => (
                       <button
                         key={teacher.id}
-                        onClick={() => loadSlots(teacher.id)}
+                        onClick={() => loadSlots(teacher.id, teacher.display_name)}
                         className="card-hover w-full p-4 text-left flex items-center"
                       >
                         <div className="w-12 h-12 bg-primary-100 rounded-xl flex items-center justify-center mr-4">
@@ -225,6 +227,7 @@ export default function ParentPage() {
                 <button
                   onClick={() => {
                     setSelectedTeacher(null)
+                    setSelectedTeacherName('')
                     setSlots([])
                     setSelectedSlot(null)
                   }}
@@ -236,9 +239,21 @@ export default function ParentPage() {
                   Changer d'enseignant
                 </button>
 
-                <h2 className="text-lg font-semibold mb-4">
-                  Créneaux disponibles
+                <h2 className="text-lg font-semibold mb-1">
+                  Créneaux de {selectedTeacherName}
                 </h2>
+                <p className="text-sm text-gray-500 mb-4">
+                  Sélectionnez un créneau pour le réserver
+                </p>
+
+                {/* Rappel des RDV déjà pris */}
+                {myAppointments.length > 0 && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+                    <p className="text-sm text-blue-800">
+                      📌 Vous avez déjà {myAppointments.length} RDV réservé{myAppointments.length > 1 ? 's' : ''}
+                    </p>
+                  </div>
+                )}
 
                 {slots.length === 0 ? (
                   <div className="empty-state">
@@ -249,13 +264,13 @@ export default function ParentPage() {
                     </p>
                   </div>
                 ) : (
-                  <div className="space-y-6">
+                  <div className="space-y-6 pb-32">
                     {Object.entries(slotsByDate).map(([date, dateSlots]) => (
                       <div key={date}>
                         <h3 className="text-sm font-medium text-gray-500 mb-2 capitalize">
                           {formatDate(date)}
                         </h3>
-                        <div className="grid grid-cols-3 gap-2">
+                        <div className="grid grid-cols-2 gap-2">
                           {dateSlots.map(slot => (
                             <button
                               key={slot.id}
@@ -263,6 +278,9 @@ export default function ParentPage() {
                               className={selectedSlot?.id === slot.id ? 'slot-selected' : 'slot-available'}
                             >
                               <span className="font-medium">{formatTime(slot.start_time)}</span>
+                              <span className="text-xs text-gray-500 block">
+                                → {formatTime(slot.end_time)}
+                              </span>
                             </button>
                           ))}
                         </div>
@@ -274,10 +292,23 @@ export default function ParentPage() {
                 {/* Formulaire de réservation */}
                 {selectedSlot && (
                   <div className="fixed inset-x-0 bottom-0 bg-white border-t shadow-lg p-4 safe-bottom animate-fade-in">
-                    <div className="container-app py-0">
-                      <p className="text-sm text-gray-600 mb-3">
-                        <strong>{formatDate(selectedSlot.date)}</strong> à {formatTime(selectedSlot.start_time)}
-                      </p>
+                    <div className="max-w-lg mx-auto">
+                      <div className="flex items-center justify-between mb-3">
+                        <div>
+                          <p className="font-semibold text-primary-600">
+                            {formatDate(selectedSlot.date, 'EEEE d MMMM')}
+                          </p>
+                          <p className="text-gray-600">
+                            {formatTime(selectedSlot.start_time)} - {formatTime(selectedSlot.end_time)}
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => setSelectedSlot(null)}
+                          className="text-gray-400 hover:text-gray-600"
+                        >
+                          ✕
+                        </button>
+                      </div>
                       
                       <input
                         type="text"
@@ -287,21 +318,13 @@ export default function ParentPage() {
                         className="input mb-3"
                       />
                       
-                      <div className="flex space-x-3">
-                        <button
-                          onClick={() => setSelectedSlot(null)}
-                          className="btn-secondary flex-1"
-                        >
-                          Annuler
-                        </button>
-                        <button
-                          onClick={handleBook}
-                          disabled={isBooking}
-                          className="btn-success flex-1"
-                        >
-                          {isBooking ? 'Réservation...' : 'Confirmer'}
-                        </button>
-                      </div>
+                      <button
+                        onClick={handleBook}
+                        disabled={isBooking}
+                        className="btn-success w-full py-3"
+                      >
+                        {isBooking ? 'Réservation en cours...' : '✓ Confirmer la réservation'}
+                      </button>
                     </div>
                   </div>
                 )}
@@ -342,7 +365,7 @@ export default function ParentPage() {
                         </p>
                         {apt.child_name && (
                           <p className="text-sm text-gray-500 mt-1">
-                            Enfant : {apt.child_name}
+                            👦 {apt.child_name}
                           </p>
                         )}
                       </div>
@@ -355,6 +378,16 @@ export default function ParentPage() {
                     </div>
                   </div>
                 ))}
+
+                {/* Bouton pour réserver encore */}
+                <div className="pt-4">
+                  <button
+                    onClick={() => setActiveTab('book')}
+                    className="btn-outline w-full"
+                  >
+                    + Réserver un autre créneau
+                  </button>
+                </div>
               </div>
             )}
           </div>
