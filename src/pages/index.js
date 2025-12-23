@@ -25,7 +25,7 @@ export default function Home() {
         router.push('/teacher')
         break
       case 'partner':
-        router.push('/teacher') // Les partenaires vont sur la même page (réunions)
+        router.push('/teacher')
         break
       case 'parent':
         router.push('/parent')
@@ -47,7 +47,7 @@ export default function Home() {
         .single()
 
       if (dbError || !data) {
-        setError('Code invalide. Vérifiez et réessayez.')
+        setError('Code invalide')
         setIsLoading(false)
         return
       }
@@ -56,7 +56,7 @@ export default function Home() {
       await checkCode(code.toUpperCase().trim())
       redirectUser(data)
     } catch (err) {
-      setError('Erreur de connexion. Réessayez.')
+      setError('Erreur de connexion')
       setIsLoading(false)
     }
   }
@@ -106,7 +106,7 @@ export default function Home() {
             </div>
 
             {error && (
-              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm text-center">
                 {error}
               </div>
             )}
@@ -116,31 +116,9 @@ export default function Home() {
               disabled={isLoading || !code.trim()}
               className="btn-primary w-full py-3"
             >
-              {isLoading ? (
-                <span className="flex items-center justify-center">
-                  <span className="loader mr-2"></span>
-                  Connexion...
-                </span>
-              ) : (
-                'Se connecter'
-              )}
+              {isLoading ? 'Connexion...' : 'Se connecter'}
             </button>
           </form>
-        </div>
-
-        {/* Aide */}
-        <div className="mt-6 text-center">
-          <div className="card p-4">
-            <p className="text-sm text-gray-600">
-              <strong>Parents :</strong> code de la classe<br />
-              <span className="text-gray-500">(ex: CM2, CM1, CE2...)</span>
-            </p>
-            <div className="border-t border-gray-100 my-3"></div>
-            <p className="text-sm text-gray-600">
-              <strong>Enseignants / Partenaires :</strong><br />
-              <span className="text-gray-500">code personnel</span>
-            </p>
-          </div>
         </div>
       </div>
     </div>
