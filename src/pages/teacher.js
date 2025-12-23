@@ -16,6 +16,9 @@ export default function TeacherPage() {
   const [loadingData, setLoadingData] = useState(true)
   const [isCreating, setIsCreating] = useState(false)
 
+  // Détecter si c'est un partenaire (pas d'accès RDV)
+  const isPartner = user?.profile === 'partner'
+
   // État création créneau - création manuelle libre
   const [slotDate, setSlotDate] = useState('')
   const [slotStartHour, setSlotStartHour] = useState('08')
@@ -25,14 +28,18 @@ export default function TeacherPage() {
 
   // État création réunion
   const [meetingTitle, setMeetingTitle] = useState('')
-  const [meetingSlots, setMeetingSlots] = useState([{ date: '', start: '14:00', end: '15:00' }])
+  const [meetingSlots, setMeetingSlots] = useState([{ date: '', startHour: '14', startMin: '00', endHour: '15', endMin: '00' }])
 
   useEffect(() => {
     if (!loading && !user) {
       router.push('/')
-    } else if (!loading && user?.profile !== 'teacher') {
+    } else if (!loading && user?.profile !== 'teacher' && user?.profile !== 'partner') {
       router.push('/')
     } else if (user) {
+      // Si partenaire, aller directement sur réunions
+      if (user.profile === 'partner') {
+        setActiveTab('reunions')
+      }
       loadData()
     }
   }, [user, loading])
@@ -44,6 +51,8 @@ export default function TeacherPage() {
   }
 
   const loadAppointments = async () => {
+    if (isPartner) return // Les partenaires n'ont pas de RDV
+    
     const { data } = await supabase
       .from('appointments')
       .select(`
@@ -68,7 +77,7 @@ export default function TeacherPage() {
           id, date, start_time, end_time,
           responses:meeting_responses (
             id, status,
-            teacher:teacher_code_id (display_name)
+            teacher:teacher_code_id (id, display_name)
           )
         )
       `)
@@ -172,8 +181,8 @@ export default function TeacherPage() {
     const slotsToInsert = validSlots.map(s => ({
       meeting_id: meeting.id,
       date: s.date,
-      start_time: s.start,
-      end_time: s.end
+      start_time: `${s.startHour}:${s.startMin}`,
+      end_time: `${s.endHour}:${s.endMin}`
     }))
 
     await supabase.from('meeting_slots').insert(slotsToInsert)
@@ -181,7 +190,7 @@ export default function TeacherPage() {
     alert('Sondage créé ! Partagez le lien avec vos collègues.')
     setShowCreateMeeting(false)
     setMeetingTitle('')
-    setMeetingSlots([{ date: '', start: '14:00', end: '15:00' }])
+    setMeetingSlots([{ date: '', startHour: '14', startMin: '00', endHour: '15', endMin: '00' }])
     loadMeetings()
   }
 
@@ -240,20 +249,22 @@ export default function TeacherPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 pb-20">
-      <Header title={user?.display_name || 'Enseignant'} />
+      <Header title={user?.display_name || (isPartner ? 'Partenaire' : 'Enseignant')} />
 
-      {/* Tabs */}
+      {/* Tabs - masquer RDV pour partenaires */}
       <div className="bg-white border-b">
         <div className="container-app py-0">
           <div className="flex space-x-1">
-            <button
-              onClick={() => setActiveTab('rdv')}
-              className={`flex-1 py-3 text-center font-medium border-b-2 transition-colors ${
-                activeTab === 'rdv' ? 'border-primary-600 text-primary-600' : 'border-transparent text-gray-500'
-              }`}
-            >
-              📅 Rendez-vous
-            </button>
+            {!isPartner && (
+              <button
+                onClick={() => setActiveTab('rdv')}
+                className={`flex-1 py-3 text-center font-medium border-b-2 transition-colors ${
+                  activeTab === 'rdv' ? 'border-primary-600 text-primary-600' : 'border-transparent text-gray-500'
+                }`}
+              >
+                📅 Rendez-vous
+              </button>
+            )}
             <button
               onClick={() => setActiveTab('reunions')}
               className={`flex-1 py-3 text-center font-medium border-b-2 transition-colors ${
@@ -267,7 +278,7 @@ export default function TeacherPage() {
       </div>
 
       <div className="container-app">
-        {activeTab === 'rdv' ? (
+        {activeTab === 'rdv' && !isPartner ? (
           <div className="animate-fade-in">
             {/* Bouton créer */}
             <button
@@ -465,7 +476,7 @@ export default function TeacherPage() {
       {/* Modal création réunion */}
       {showCreateMeeting && (
         <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 overflow-y-auto">
-          <div className="bg-white w-full sm:max-w-md sm:rounded-xl rounded-t-xl p-6 animate-fade-in my-4">
+          <div className="bg-white w-full sm:max-w-md sm:rounded-xl rounded-t-xl p-6 animate-fade-in my-4 max-h-[90vh] overflow-y-auto">
             <h2 className="text-lg font-semibold mb-4">Nouveau sondage</h2>
             
             <div className="space-y-4">
@@ -475,7 +486,7 @@ export default function TeacherPage() {
                   type="text"
                   value={meetingTitle}
                   onChange={(e) => setMeetingTitle(e.target.value)}
-                  placeholder="Ex: Conseil de cycle"
+                  placeholder="Ex: Conseil de cycle, Réunion partenaires..."
                   className="input"
                 />
               </div>
@@ -483,7 +494,18 @@ export default function TeacherPage() {
               <div>
                 <label className="label">Créneaux proposés</label>
                 {meetingSlots.map((slot, idx) => (
-                  <div key={idx} className="flex items-center space-x-2 mb-2">
+                  <div key={idx} className="bg-gray-50 rounded-lg p-3 mb-2">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm font-medium text-gray-600">Option {idx + 1}</span>
+                      {meetingSlots.length > 1 && (
+                        <button
+                          onClick={() => setMeetingSlots(meetingSlots.filter((_, i) => i !== idx))}
+                          className="text-red-500 text-sm"
+                        >
+                          Supprimer
+                        </button>
+                      )}
+                    </div>
                     <input
                       type="date"
                       value={slot.date}
@@ -493,36 +515,70 @@ export default function TeacherPage() {
                         setMeetingSlots(newSlots)
                       }}
                       min={toInputDate(new Date())}
-                      className="input flex-1"
+                      className="input mb-2"
                     />
-                    <select
-                      value={slot.start}
-                      onChange={(e) => {
-                        const newSlots = [...meetingSlots]
-                        newSlots[idx].start = e.target.value
-                        setMeetingSlots(newSlots)
-                      }}
-                      className="input w-24"
-                    >
-                      {Array.from({ length: 12 }, (_, i) => i + 8).map(h => (
-                        <option key={h} value={`${h}:00`}>{h}h</option>
-                      ))}
-                    </select>
-                    {meetingSlots.length > 1 && (
-                      <button
-                        onClick={() => setMeetingSlots(meetingSlots.filter((_, i) => i !== idx))}
-                        className="text-red-500"
+                    <div className="flex items-center space-x-2">
+                      <select
+                        value={slot.startHour}
+                        onChange={(e) => {
+                          const newSlots = [...meetingSlots]
+                          newSlots[idx].startHour = e.target.value
+                          setMeetingSlots(newSlots)
+                        }}
+                        className="input flex-1"
                       >
-                        ✕
-                      </button>
-                    )}
+                        {hours.map(h => (
+                          <option key={h} value={h}>{h}h</option>
+                        ))}
+                      </select>
+                      <select
+                        value={slot.startMin}
+                        onChange={(e) => {
+                          const newSlots = [...meetingSlots]
+                          newSlots[idx].startMin = e.target.value
+                          setMeetingSlots(newSlots)
+                        }}
+                        className="input w-20"
+                      >
+                        {minutes.map(m => (
+                          <option key={m} value={m}>{m}</option>
+                        ))}
+                      </select>
+                      <span className="text-gray-400">→</span>
+                      <select
+                        value={slot.endHour}
+                        onChange={(e) => {
+                          const newSlots = [...meetingSlots]
+                          newSlots[idx].endHour = e.target.value
+                          setMeetingSlots(newSlots)
+                        }}
+                        className="input flex-1"
+                      >
+                        {hours.map(h => (
+                          <option key={h} value={h}>{h}h</option>
+                        ))}
+                      </select>
+                      <select
+                        value={slot.endMin}
+                        onChange={(e) => {
+                          const newSlots = [...meetingSlots]
+                          newSlots[idx].endMin = e.target.value
+                          setMeetingSlots(newSlots)
+                        }}
+                        className="input w-20"
+                      >
+                        {minutes.map(m => (
+                          <option key={m} value={m}>{m}</option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
                 ))}
                 <button
-                  onClick={() => setMeetingSlots([...meetingSlots, { date: '', start: '14:00', end: '15:00' }])}
+                  onClick={() => setMeetingSlots([...meetingSlots, { date: '', startHour: '14', startMin: '00', endHour: '15', endMin: '00' }])}
                   className="text-primary-600 text-sm"
                 >
-                  + Ajouter un créneau
+                  + Ajouter une option
                 </button>
               </div>
             </div>
@@ -564,7 +620,7 @@ function MeetingCard({ meeting, currentUserId, onRespond, onConfirm }) {
 
       <div className="space-y-2">
         {meeting.slots?.map(slot => {
-          const myResponse = slot.responses?.find(r => r.teacher?.display_name)
+          const myResponse = slot.responses?.find(r => r.teacher?.id === currentUserId)
           const availableCount = slot.responses?.filter(r => r.status === 'available').length || 0
           const isConfirmed = meeting.confirmed_slot_id === slot.id
 
@@ -575,10 +631,13 @@ function MeetingCard({ meeting, currentUserId, onRespond, onConfirm }) {
                 isConfirmed ? 'bg-green-50 border-green-300' : 'bg-gray-50 border-gray-200'
               }`}
             >
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between flex-wrap gap-2">
                 <div>
                   <p className="font-medium text-sm">
-                    {formatDate(slot.date, 'EEE d MMM')} à {formatTime(slot.start_time)}
+                    {formatDate(slot.date, 'EEE d MMM')}
+                  </p>
+                  <p className="text-xs text-gray-600">
+                    {formatTime(slot.start_time)} - {formatTime(slot.end_time)}
                   </p>
                   <p className="text-xs text-gray-500">
                     {availableCount} dispo.

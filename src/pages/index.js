@@ -24,6 +24,9 @@ export default function Home() {
       case 'teacher':
         router.push('/teacher')
         break
+      case 'partner':
+        router.push('/teacher') // Les partenaires vont sur la même page (réunions)
+        break
       case 'parent':
         router.push('/parent')
         break
@@ -70,8 +73,12 @@ export default function Home() {
     <div className="min-h-screen flex flex-col items-center justify-center px-4">
       {/* Logo et titre */}
       <div className="text-center mb-8">
-        <div className="w-20 h-20 bg-primary-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-          <span className="text-4xl">🏫</span>
+        <div className="w-24 h-24 rounded-2xl overflow-hidden mx-auto mb-4 shadow-lg">
+          <img 
+            src="/icon-512.png" 
+            alt="École Martel" 
+            className="w-full h-full object-cover"
+          />
         </div>
         <h1 className="text-2xl font-bold text-gray-900">École Martel</h1>
         <p className="text-gray-600 mt-1">Rendez-vous & Réunions</p>
@@ -90,7 +97,7 @@ export default function Home() {
                 id="code"
                 value={code}
                 onChange={(e) => setCode(e.target.value.toUpperCase())}
-                placeholder="Ex: CM2 ou DUPONT"
+                placeholder="Entrez votre code"
                 className="input text-center text-lg tracking-widest uppercase"
                 autoComplete="off"
                 autoCapitalize="characters"
@@ -125,13 +132,13 @@ export default function Home() {
         <div className="mt-6 text-center">
           <div className="card p-4">
             <p className="text-sm text-gray-600">
-              <strong>Parents :</strong> utilisez le code de la classe<br />
+              <strong>Parents :</strong> code de la classe<br />
               <span className="text-gray-500">(ex: CM2, CM1, CE2...)</span>
             </p>
             <div className="border-t border-gray-100 my-3"></div>
             <p className="text-sm text-gray-600">
-              <strong>Enseignants :</strong> utilisez votre code personnel<br />
-              <span className="text-gray-500">(fourni par la direction)</span>
+              <strong>Enseignants / Partenaires :</strong><br />
+              <span className="text-gray-500">code personnel</span>
             </p>
           </div>
         </div>

@@ -114,11 +114,17 @@ export default function AdminPage() {
   // Stats
   const stats = {
     teachers: codes.filter(c => c.profile === 'teacher' && c.is_active).length,
+    partners: codes.filter(c => c.profile === 'partner' && c.is_active).length,
     parents: codes.filter(c => c.profile === 'parent' && c.is_active).length,
     rdvBooked: appointments.filter(a => a.status === 'booked').length,
     rdvAvailable: appointments.filter(a => a.status === 'available').length,
     meetingsPending: meetings.filter(m => m.status === 'pending').length
   }
+
+  // Grouper les codes par profil
+  const teacherCodes = codes.filter(c => c.profile === 'teacher')
+  const partnerCodes = codes.filter(c => c.profile === 'partner')
+  const parentCodes = codes.filter(c => c.profile === 'parent')
 
   if (loading || loadingData) {
     return (
@@ -187,30 +193,62 @@ export default function AdminPage() {
             </button>
 
             {/* Enseignants */}
-            <h3 className="font-semibold mb-2 mt-4">👨‍🏫 Enseignants</h3>
-            <div className="space-y-2 mb-6">
-              {codes.filter(c => c.profile === 'teacher').map(code => (
-                <CodeCard
-                  key={code.id}
-                  code={code}
-                  onToggle={() => toggleCodeStatus(code)}
-                  onDelete={() => deleteCode(code)}
-                />
-              ))}
-            </div>
+            <h3 className="font-semibold mb-2 mt-4 flex items-center">
+              <span className="mr-2">👨‍🏫</span> Enseignants ({teacherCodes.length})
+            </h3>
+            {teacherCodes.length === 0 ? (
+              <p className="text-gray-500 text-sm mb-4">Aucun enseignant. Créez des codes enseignants.</p>
+            ) : (
+              <div className="space-y-2 mb-6">
+                {teacherCodes.map(code => (
+                  <CodeCard
+                    key={code.id}
+                    code={code}
+                    onToggle={() => toggleCodeStatus(code)}
+                    onDelete={() => deleteCode(code)}
+                  />
+                ))}
+              </div>
+            )}
+
+            {/* Partenaires */}
+            <h3 className="font-semibold mb-2 mt-4 flex items-center">
+              <span className="mr-2">🏛️</span> Partenaires ({partnerCodes.length})
+              <span className="text-xs text-gray-400 ml-2 font-normal">Mairie, Centre Social...</span>
+            </h3>
+            {partnerCodes.length === 0 ? (
+              <p className="text-gray-500 text-sm mb-4">Aucun partenaire. Créez des codes pour la Mairie, le Centre Social, etc.</p>
+            ) : (
+              <div className="space-y-2 mb-6">
+                {partnerCodes.map(code => (
+                  <CodeCard
+                    key={code.id}
+                    code={code}
+                    onToggle={() => toggleCodeStatus(code)}
+                    onDelete={() => deleteCode(code)}
+                  />
+                ))}
+              </div>
+            )}
 
             {/* Parents */}
-            <h3 className="font-semibold mb-2">👨‍👩‍👧 Parents (par classe)</h3>
-            <div className="space-y-2">
-              {codes.filter(c => c.profile === 'parent').map(code => (
-                <CodeCard
-                  key={code.id}
-                  code={code}
-                  onToggle={() => toggleCodeStatus(code)}
-                  onDelete={() => deleteCode(code)}
-                />
-              ))}
-            </div>
+            <h3 className="font-semibold mb-2 flex items-center">
+              <span className="mr-2">👨‍👩‍👧</span> Parents par classe ({parentCodes.length})
+            </h3>
+            {parentCodes.length === 0 ? (
+              <p className="text-gray-500 text-sm">Aucun code parent. Créez un code par classe.</p>
+            ) : (
+              <div className="space-y-2">
+                {parentCodes.map(code => (
+                  <CodeCard
+                    key={code.id}
+                    code={code}
+                    onToggle={() => toggleCodeStatus(code)}
+                    onDelete={() => deleteCode(code)}
+                  />
+                ))}
+              </div>
+            )}
           </div>
         )}
 
@@ -253,25 +291,29 @@ export default function AdminPage() {
         {activeTab === 'reunions' && (
           <div className="animate-fade-in">
             <h3 className="font-semibold mb-3">Sondages de réunion</h3>
-            <div className="space-y-2">
-              {meetings.map(meeting => (
-                <div key={meeting.id} className="card p-3">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="font-medium">{meeting.title}</p>
-                      <p className="text-xs text-gray-500">
-                        Par {meeting.creator?.display_name}
-                      </p>
+            {meetings.length === 0 ? (
+              <p className="text-gray-500 text-sm">Aucun sondage en cours.</p>
+            ) : (
+              <div className="space-y-2">
+                {meetings.map(meeting => (
+                  <div key={meeting.id} className="card p-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-medium">{meeting.title}</p>
+                        <p className="text-xs text-gray-500">
+                          Par {meeting.creator?.display_name}
+                        </p>
+                      </div>
+                      <span className={`badge ${
+                        meeting.status === 'confirmed' ? 'badge-success' : 'badge-warning'
+                      }`}>
+                        {meeting.status === 'confirmed' ? 'Confirmé' : 'En attente'}
+                      </span>
                     </div>
-                    <span className={`badge ${
-                      meeting.status === 'confirmed' ? 'badge-success' : 'badge-warning'
-                    }`}>
-                      {meeting.status === 'confirmed' ? 'Confirmé' : 'En attente'}
-                    </span>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -279,19 +321,20 @@ export default function AdminPage() {
       {/* Modal création code */}
       {showCreateCode && (
         <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50">
-          <div className="bg-white w-full sm:max-w-md sm:rounded-xl rounded-t-xl p-6 animate-fade-in">
+          <div className="bg-white w-full sm:max-w-md sm:rounded-xl rounded-t-xl p-6 animate-fade-in max-h-[90vh] overflow-y-auto">
             <h2 className="text-lg font-semibold mb-4">Nouveau code d'accès</h2>
             
             <div className="space-y-4">
               <div>
-                <label className="label">Type</label>
+                <label className="label">Type de compte</label>
                 <select
                   value={newCode.profile}
                   onChange={(e) => setNewCode({ ...newCode, profile: e.target.value })}
                   className="input"
                 >
-                  <option value="teacher">Enseignant</option>
-                  <option value="parent">Parent (par classe)</option>
+                  <option value="teacher">👨‍🏫 Enseignant</option>
+                  <option value="partner">🏛️ Partenaire (Mairie, Centre Social...)</option>
+                  <option value="parent">👨‍👩‍👧 Parent (par classe)</option>
                 </select>
               </div>
 
@@ -301,7 +344,11 @@ export default function AdminPage() {
                   type="text"
                   value={newCode.code}
                   onChange={(e) => setNewCode({ ...newCode, code: e.target.value.toUpperCase() })}
-                  placeholder={newCode.profile === 'teacher' ? 'Ex: DUPONT' : 'Ex: CM2'}
+                  placeholder={
+                    newCode.profile === 'teacher' ? 'Ex: DUPONT' :
+                    newCode.profile === 'partner' ? 'Ex: MAIRIE ou CENTRE-SOCIAL' :
+                    'Ex: CM2'
+                  }
                   className="input uppercase"
                 />
               </div>
@@ -312,24 +359,54 @@ export default function AdminPage() {
                   type="text"
                   value={newCode.display_name}
                   onChange={(e) => setNewCode({ ...newCode, display_name: e.target.value })}
-                  placeholder={newCode.profile === 'teacher' ? 'Ex: M. Dupont' : 'Ex: Parents CM2'}
+                  placeholder={
+                    newCode.profile === 'teacher' ? 'Ex: M. Dupont' :
+                    newCode.profile === 'partner' ? 'Ex: Mme Martin (Mairie)' :
+                    'Ex: Parents CM2'
+                  }
                   className="input"
                 />
               </div>
 
-              <div>
-                <label className="label">Classe</label>
-                <input
-                  type="text"
-                  value={newCode.class_name}
-                  onChange={(e) => setNewCode({ ...newCode, class_name: e.target.value })}
-                  placeholder="Ex: CM2"
-                  className="input"
-                />
-                <p className="text-xs text-gray-500 mt-1">
-                  Lie l'enseignant à une classe pour les parents
-                </p>
-              </div>
+              {newCode.profile === 'teacher' && (
+                <div>
+                  <label className="label">Classe</label>
+                  <input
+                    type="text"
+                    value={newCode.class_name}
+                    onChange={(e) => setNewCode({ ...newCode, class_name: e.target.value })}
+                    placeholder="Ex: CM2"
+                    className="input"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Lie l'enseignant à une classe pour les RDV parents
+                  </p>
+                </div>
+              )}
+
+              {newCode.profile === 'parent' && (
+                <div>
+                  <label className="label">Classe</label>
+                  <input
+                    type="text"
+                    value={newCode.class_name}
+                    onChange={(e) => setNewCode({ ...newCode, class_name: e.target.value })}
+                    placeholder="Ex: CM2"
+                    className="input"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Les parents verront les enseignants de cette classe
+                  </p>
+                </div>
+              )}
+
+              {newCode.profile === 'partner' && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                  <p className="text-sm text-blue-800">
+                    💡 Les partenaires peuvent participer aux sondages de réunion avec les enseignants.
+                  </p>
+                </div>
+              )}
             </div>
 
             <div className="flex space-x-3 mt-6">
@@ -351,15 +428,25 @@ export default function AdminPage() {
 }
 
 function CodeCard({ code, onToggle, onDelete }) {
+  const profileIcons = {
+    teacher: '👨‍🏫',
+    partner: '🏛️',
+    parent: '👨‍👩‍👧',
+    admin: '🔐'
+  }
+
   return (
     <div className={`card p-3 ${!code.is_active ? 'opacity-50' : ''}`}>
       <div className="flex items-center justify-between">
-        <div>
-          <p className="font-mono font-bold text-primary-600">{code.code}</p>
-          <p className="text-sm text-gray-600">
-            {code.display_name || '(sans nom)'}
-            {code.class_name && <span className="text-gray-400"> • {code.class_name}</span>}
-          </p>
+        <div className="flex items-center">
+          <span className="mr-2">{profileIcons[code.profile] || '👤'}</span>
+          <div>
+            <p className="font-mono font-bold text-primary-600">{code.code}</p>
+            <p className="text-sm text-gray-600">
+              {code.display_name || '(sans nom)'}
+              {code.class_name && <span className="text-gray-400"> • {code.class_name}</span>}
+            </p>
+          </div>
         </div>
         <div className="flex items-center space-x-2">
           <button
